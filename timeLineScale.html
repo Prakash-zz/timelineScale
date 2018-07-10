@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<style>
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #575757;
+        shape-rendering: crispEdges;
+    }
+
+    .tick text {
+        fill: #575757;
+        font-size: 10px;
+    }
+
+    text,
+    tspan {
+        font-family: sans-serif;
+        font-size: 14px;
+        dominant-baseline: central;
+    }
+</style>
+
+<body>
+    <div id="timeline"></div>
+</body>
+<script>
+    var w = 1200,
+        h = 200,
+        parseDate = d3.time.format("%Y-%m-%dT%H:%M:%S").parse;
+
+    linePrevious = {
+        x1: null,
+        x2: null,
+        y1: null,
+        y2: null
+    }
+
+    var agenda = new Array();
+    var pagenda = new Array();
+    for (var i = 0; i < 5; i++) {
+        var val = i + 1;
+        var status;
+        var stopStatus = "close";
+
+        if (i == 4) {
+            type = "rect";
+        } else {
+            type = "circle";
+        }
+
+        if (i == 1) {
+            stopStatus = "open";
+        }
+
+
+        var stpstat = new Array();
+        if (i == 0) {
+            stpstat.push({
+                date: parseDate("1988-01-01T00:00:00"),
+                next: "close",
+                prev: null,
+                stat: "close"
+            })
+        } else if (i == 1) {
+            stpstat.push({
+                date: parseDate("1988-01-05T12:30:30"),
+                next: "open",
+                prev: "close",
+                stat: "close"
+            })
+        } else if (i == 2) {
+            stpstat.push({
+                date: parseDate("1988-01-09T12:45:00"),
+                next: "open",
+                prev: "close",
+                stat: "open"
+            })
+        } else if (i == 3) {
+            stpstat.push({
+                date: parseDate("1988-01-10T12:50:00"),
+                next: "open",
+                prev: "open",
+                stat: "open"
+            })
+        } else if (i == 4) {
+            stpstat.push({
+                date: parseDate("1988-01-11T12:55:00"),
+                next: "open",
+                prev: "close",
+                stat: "open"
+            })
+        }
+
+        agenda.push({
+            type: type,
+            value: val,
+            status: status,
+            transit: i,
+            distance: 10,
+            time: "10:12pm",
+            stat: stpstat
+        })
+    }
+
+    svg = d3.select("#timeline")
+        .append("svg")
+        .attr("width", w)
+        .attr("height", h);
+
+
+    var x = d3.time.scale()
+        .domain([agenda[0].stat[0].date, agenda[agenda.length - 1].stat[0].date])
+        .range([10, w - 110]);
+
+
+    var xaxis = d3.svg.axis().scale(x).tickSize(6, 6)
+        .orient("bottom");
+
+
+    var zoom = d3.behavior.zoom()
+        .on("zoom", function() {
+
+            svg.selectAll(".x.axis").call(xaxis);
+
+            svg.select("g").call(xaxis).selectAll("text").style("font-size", "10px");
+
+
+            svg.selectAll(".line").attr("x1", function(d) {
+                if (isNaN(x(d))) {
+                    ret = x(d.stat[0].date)
+                    linePrevious.x1 = ret
+                    return ret;
+                } else {
+                    ret = x(d);
+                    linePrevious.x1 = ret
+                    return ret;
+                }
+
+            }).attr("x2", function(d) {
+                if (linePrevious.x1 != null) {
+                    return linePrevious.x1
+                }
+                if (isNaN(x(d))) {
+                    return x(d.stat[0].date);
+                } else {
+                    return x(d);
+                }
+            }).attr("y1", function(d) {
+                return 120;
+            }).attr("y2", function(d) {
+                return 120;
+            })
+
+            svg.selectAll(".outer-rect")
+                .attr("y", function(d) {
+                    return 110;
+                })
+                .attr("x", function(d) {
+                    if (isNaN(x(d))) {
+                        return x(d.stat[0].date) - 10;
+                    } else {
+                        return x(d) - 10;
+                    }
+                })
+
+            svg.selectAll(".inner-rect")
+                .attr("y", function(d) {
+                    return 115;
+                })
+                .attr("x", function(d) {
+                    if (isNaN(x(d))) {
+                        return x(d.stat[0].date) - 5;
+                    } else {
+                        return x(d) + 5;
+                    }
+                })
+
+
+            svg.selectAll("circle")
+                .attr("cx", function(d) {
+                    return x(d.stat[0].date);
+                })
+
+
+        }).x(x);
+
+    var rect = svg.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", w - 100)
+        .attr("height", h)
+        .attr("opacity", 0)
+        .style("cursor", "move")
+        .call(zoom);
+
+    svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0,170)")
+        .call(xaxis)
+        .selectAll("text")
+        .style("font-size", "10px");
+
+    function draw_events(dates) {
+        var events = svg.selectAll("rect.item").data(dates);
+
+        var cfg = {
+            width: 1200,
+            height: 200,
+            radius: 10,
+            strokeWidth: 4,
+            lineWidth: 4,
+            fstrokeWidth: 4,
+            background: "#FFF",
+        };
+
+
+        var timestamps = dates.map(function(d) {
+            return Date.parse(d.stat[0].date);
+        });
+        var maxValue = d3.max(timestamps);
+        var minValue = d3.min(timestamps);
+
+        var margin = (d3.max(dates.map(function(d) {
+            return d.radius
+        })) || cfg.radius) * 1.5 + cfg.lineWidth;
+        var step = (cfg.horizontalLayout) ? ((cfg.width - 2 * margin) / (maxValue - minValue)) : ((cfg.height - 2 * margin) / (maxValue - minValue));
+        if (maxValue == minValue) {
+            step = 0;
+            if (cfg.horizontalLayout) {
+                margin = cfg.width / 2
+            } else {
+                margin = cfg.height / 2
+            }
+        }
+
+
+        if (maxValue == minValue) {
+            step = 0;
+            if (cfg.horizontalLayout) {
+                margin = cfg.width / 2
+            } else {
+                margin = cfg.height / 2
+            }
+        }
+
+        linePrevious = {
+            x1: null,
+            x2: null,
+            y1: null,
+            y2: null
+        }
+
+        var origion = "";
+        var origion1 = "";
+        var origion2 = "";
+        var origion3 = "";
+
+        var dest = "";
+        var dest1 = "";
+        var dest2 = "";
+        var dest3 = "";
+
+        var org = origion + "\n" + origion1 + "\n" + origion2 + "\n" + origion3;
+
+        events.enter().append("g")
+            .attr("transform", "translate(" + -90 + "," + -80 + ")")
+            .append("a")
+            .attr("xlink:href", function(d) {
+                return "www.yahoo.com"
+            })
+            .attr("target", "_blank")
+            .attr("transform", "translate(" + 100 + "," + 100 + ")")
+            .selectAll("text")
+            .data(org.split("\n"))
+            .enter().append("text")
+            .attr("class", "label")
+            .attr("dy", function(d, i) {
+                return (i + 0.35) + "em";
+            })
+            .text(function(d) {
+                return d;
+            })
+            .style("cursor", "pointer");
+
+        events.enter().append("line")
+            .attr("class", "line")
+            .attr("x1", function(d) {
+                var ret;
+                ret = x(d.stat[0].date);
+                linePrevious.x1 = ret
+                return ret
+            })
+            .attr("x2", function(d) {
+                if (linePrevious.x1 != null) {
+                    return linePrevious.x1
+                }
+                ret = x(d.stat[0].date);
+                return Math.floor(cfg.width / 2)
+            })
+            .attr("y1", function(d) {
+                var ret;
+                ret = 120;
+                linePrevious.y1 = ret
+                return ret
+            })
+            .attr("y2", function(d) {
+                if (linePrevious.y1 != null) {
+                    return linePrevious.y1
+                }
+                return Math.floor(cfg.height / 2)
+            })
+            .style("stroke", function(d) {
+                return "rgb(102, 153, 102)";
+            })
+            .style("stroke-width", 2);
+
+        events.enter()
+            .append("circle")
+            .attr("class", "item")
+            .filter(function(d) {
+                if (d.type == "rect") {
+                    return false;
+                } else {
+                    return true;
+                }
+
+            })
+            .attr("r", 8)
+            .style("stroke", function(d) {
+                return "rgb(102, 153, 102)";
+            })
+            .style("stroke-width", function(d) {
+                if (d.value == 1) {
+                    var datum = d.value;
+                    firstCirl = x(d.stat[0].date);
+                    return 4;
+                } else if (d.strokeWidth != undefined) {
+                    return 4; //d.strokeWidth
+                }
+                return 4; //cfg.strokeWidth
+            })
+            .style("fill", "white")
+            .attr("cy", function() {
+                return 120;
+            })
+            .attr("cx", function(d) {
+                return x(d.stat[0].date);
+            });
+
+        events.enter().append("circle")
+            .filter(function(d) {
+                if (d.value == 1) {
+                    return true;
+                } else {
+                    return false;
+                }
+            })
+            .attr("class", "timeline-event")
+            .attr("r", 4)
+            .style("stroke", function(d) {
+                return "black";
+            })
+            .style("stroke-width", 3)
+            .style("fill", "white")
+            .attr("cy", function() {
+                return 120;
+            })
+            .attr("cx", function(d) {
+                return firstCirl; //18.5;
+            });
+
+        events.enter().append("rect")
+            .attr("class", "outer-rect")
+            .filter(function(d) {
+                if (d.type == "rect") {
+                    return true;
+                } else {
+                    return false;
+                }
+            })
+            .attr("y", function(d) {
+                return 110;
+            })
+            .attr("x", function(d) {
+                var datum = d.value;
+                var y = x(d.stat[0].date);;
+                return y - 10;
+            })
+            .attr("width", 20)
+            .attr("height", 20)
+            .attr("fill", "white")
+            .style('stroke-width', 2)
+            .style('stroke', function(d) {
+                if (d.status == "transit") {
+                    return "green";
+                }
+                return "#666666";
+            });
+
+
+        events.enter().append("rect")
+            .attr("class", "inner-rect")
+            .filter(function(d) {
+                if (d.value == 5) {
+                    return true;
+                } else {
+                    return false;
+                }
+            })
+            .attr("y", function(d) {
+                return 115;
+            })
+            .attr("x", function(d) {
+                var y = x(d.stat[0].date);
+                return y - 5;
+            })
+            .attr("width", 10)
+            .attr("height", 10)
+            .attr("fill", "white")
+            .style('stroke-width', 4)
+            .style('stroke', '#666666');
+
+        events.exit()
+            .remove();
+    }
+
+    function update_events() {
+        return svg.selectAll("circle")
+            .attr("cx", function(d) {
+                return x(d.stat[0].date);
+            })
+    }
+    draw_events(agenda)
+</script>
+
+</html>
